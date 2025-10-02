@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Happy Birthday</title>
+  <style>
+    :root{
+      --pink: #ff5d91;
+      --deep: #d6336c;
+    }
+    body{
+      margin:0;
+      min-height:100vh;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      background: linear-gradient(180deg,#fff0f6 0%, #fffafc 100%);
+      font-family: "Comic Sans MS", cursive, system-ui;
+      padding:28px;
+    }
+
+    h1{ color:var(--deep); margin:6px 0 18px; font-size:2rem; }
+
+    .cake { position: relative; display:inline-block; }
+    .cake img{ width:280px; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.12); display:block; }
+
+    .candle{ position:absolute; width:10px; height:28px; background:#fff; border-radius:3px; }
+    .candle .flame{ position:absolute; left:50%; top:-14px; transform:translateX(-50%); width:12px; height:14px;
+      background: radial-gradient(circle,#ffd84d 30%, #ff9a4d 70%, transparent 100%); border-radius:50%;
+      animation:flicker .25s infinite alternate;
+    }
+    @keyframes flicker{ from{ transform:translateX(-50%) scale(1); opacity:1 } to{ transform:translateX(-50%) scale(1.12); opacity:.85 } }
+
+    /* buttons */
+    .controls{ margin-top:16px; display:flex; flex-direction:column; gap:10px; align-items:center; }
+    .btn{ background:var(--pink); color:#fff; border:none; padding:10px 24px; border-radius:26px; font-weight:700; cursor:pointer;
+      box-shadow:0 6px 18px rgba(214,51,108,0.18);
+    }
+    .btn:hover{ transform:translateY(-2px); }
+
+    /* envelope box */
+    .envelope {
+      display: none; /* <-- hidden initially */
+      margin-top:18px;
+      width:320px;
+      padding:18px;
+      background:#fff;
+      border-radius:12px;
+      border: 2px solid rgba(214,51,108,0.12);
+      box-shadow:0 8px 30px rgba(0,0,0,0.06);
+      color:var(--deep);
+      text-align:center;
+      font-family: 'Dancing Script', cursive;
+      font-size:18px;
+    }
+
+    /* floating heart (used when envelope opened) */
+    .heart{ position:fixed; font-size:20px; color:#ff4d6d; pointer-events:none; animation:rise 4s linear forwards; }
+    @keyframes rise{ to { transform: translateY(-900px) scale(1.2); opacity:0 } }
+
+    /* confetti is drawn on canvas */
+    canvas{ position:fixed; top:0; left:0; pointer-events:none; z-index:9000; }
+
+    /* slideshow: polaroid framed style */
+    .slideshow {
+      display: none; /* <-- hidden initially */
+      width: 320px;
+      height: 400px;
+      margin: 22px auto;
+      border-radius: 18px;
+      box-shadow: 0 14px 40px rgba(0,0,0,0.14);
+      position: relative;
+      background: #fff;
+      border: 6px solid #fff0f5;
+      overflow: hidden;
+    }
+
+    .slideshow img {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      object-fit: cover;
+      opacity: 0;
+      transition: opacity 1s ease-in-out, transform 1s ease-in-out;
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    }
+    .slideshow img.active {
+      opacity: 1;
+      transform: scale(1.03);
+    }
+
+    /* nav buttons under slideshow */
+    .nav-buttons { display:none; margin-top:12px; }
+    .nav-buttons button { margin: 0 8px; padding:8px 16px; border-radius:20px; border:none; background:var(--pink); color:#fff; cursor:pointer; }
+    .nav-buttons button:hover{ background: #ff2e55; }
+
+    /* small screens tweak */
+    @media (max-width:380px){
+      .slideshow{ width:92vw; height:56vh; }
+      .envelope, .btn{ width:92vw; max-width:360px; }
+      .cake img{ width:220px; }
+    }
+  </style>
+</head>
+<body>
+  <h1>Happy Birthday 🎂</h1>
+
+  <div class="cake" id="cake">
+    <img src="https://i.postimg.cc/0QBZKhxf/wedding-cake-297337-1280.png" alt="Cake">
+    <!-- centered candles -->
+    <div class="candle" style="top:40px; left:50%; transform:translateX(-28px);"><div class="flame"></div></div>
+    <div class="candle" style="top:40px; left:50%; transform:translateX(12px);"><div class="flame"></div></div>
+  </div>
+
+  <div class="controls">
+    <button id="blowBtn" class="btn">Blow Candles</button>
+    <button id="openEnvBtn" class="btn" style="display:none;">Open Envelope</button>
+    <button id="giftBtn" class="btn" style="display:none;">Gift 💕</button>
+  </div>
+
+  <div id="envelope" class="envelope" aria-hidden="true">
+    💌 You are the most special person in my life. Wishing you endless happiness, love, and success. Happy Birthday! 💖
+  </div>
+
+  <div id="slideshow" class="slideshow" aria-hidden="true">
+    <!-- NO 'active' class here: first slide is shown only when slideshow starts -->
+    <img src="https://i.postimg.cc/sx3vnVh1/1758268980370.png" alt="photo1">
+    <img src="https://i.postimg.cc/bwr2cNFt/1758474497802.png" alt="photo2">
+    <img src="https://i.postimg.cc/FssY3HvB/1758279144951.png" alt="photo3">
+  </div>
+
+  <div class="nav-buttons" id="navButtons">
+    <button id="prevBtn">← Prev</button>
+    <button id="nextBtn">Next →</button>
+  </div>
+
+  <canvas id="confetti"></canvas>
+
+  <script>
+    // Elements
+    const blowBtn = document.getElementById('blowBtn');
+    const openEnvBtn = document.getElementById('openEnvBtn');
+    const giftBtn = document.getElementById('giftBtn');
+    const envelope = document.getElementById('envelope');
+    const slideshow = document.getElementById('slideshow');
+    const navButtons = document.getElementById('navButtons');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+
+    // Slide state
+    let slides = [], current = 0, slideInterval = null;
+
+    // Confetti setup (canvas)
+    const confettiCanvas = document.getElementById('confetti');
+    const ctx = confettiCanvas.getContext('2d');
+    function resizeCanvas(){
+      confettiCanvas.width = window.innerWidth;
+      confettiCanvas.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+    let confettiPieces = [];
+
+    function spawnConfetti(count=80){
+      confettiPieces = Array.from({length:count}, () => ({
+        x: Math.random()*confettiCanvas.width,
+        y: -Math.random()*confettiCanvas.height,
+        w: 6 + Math.random()*10,
+        h: 6 + Math.random()*10,
+        color: `hsl(${Math.random()*360},80%,60%)`,
+        speed: 2 + Math.random()*3,
+        rot: Math.random()*360,
+        rotSpeed: (Math.random()-0.5)*10
+      }));
+      requestAnimationFrame(drawConfetti);
+    }
+    function drawConfetti(){
+      ctx.clearRect(0,0,confettiCanvas.width,confettiCanvas.height);
+      confettiPieces.forEach(p=>{
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot * Math.PI/180);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+        ctx.restore();
+        p.y += p.speed;
+        p.rot += p.rotSpeed;
+        if(p.y > confettiCanvas.height + 50) p.y = -50;
+      });
+      requestAnimationFrame(drawConfetti);
+    }
+
+    // Floating heart (small DOM hearts)
+    function createFloatingHeart(){
+      const el = document.createElement('div');
+      el.className = 'heart';
+      el.textContent = '💕';
+      el.style.left = Math.random()*(window.innerWidth-40) + 'px';
+      document.body.appendChild(el);
+      setTimeout(()=> el.remove(), 4200);
+    }
+
+    // --------- Button behaviors ----------
+    blowBtn.addEventListener('click', () => {
+      const ok = confirm("✨ Make a wish madam ji 💕💕💕 ✨");
+      if(!ok) return;
+      // hide flames visually
+      document.querySelectorAll('.candle .flame').forEach(f => f.style.display = 'none');
+      // confetti celebration
+      spawnConfetti(90);
+      // reveal Envelope open button
+      openEnvBtn.style.display = 'inline-block';
+    });
+
+    openEnvBtn.addEventListener('click', () => {
+      envelope.style.display = 'block';
+      envelope.setAttribute('aria-hidden','false');
+      // small floating hearts
+      for(let i=0;i<10;i++){
+        setTimeout(createFloatingHeart, i*250);
+      }
+      // reveal gift button
+      giftBtn.style.display = 'inline-block';
+    });
+
+    giftBtn.addEventListener('click', () => {
+      const ok = confirm("I love you my dear, Happy Birthday 💕");
+      if(!ok) return;
+      // show slideshow & nav
+      slideshow.style.display = 'block';
+      slideshow.setAttribute('aria-hidden','false');
+      navButtons.style.display = 'block';
+      // start slideshow
+      startSlideshow();
+    });
+
+    // --------- Slideshow logic ----------
+    function startSlideshow(){
+      slides = Array.from(document.querySelectorAll('#slideshow img'));
+      if(!slides.length) return;
+      // ensure previously active removed
+      slides.forEach(s => s.classList.remove('active'));
+      current = 0;
+      slides[current].classList.add('active');
+      // clear any existing interval
+      if(slideInterval) clearInterval(slideInterval);
+      slideInterval = setInterval(()=> {
+        goToSlide((current+1) % slides.length);
+      }, 4000);
+    }
+
+    function goToSlide(index){
+      if(!slides || !slides.length) return;
+      slides[current].classList.remove('active');
+      current = index;
+      slides[current].classList.add('active');
+    }
+
+    function prevSlide(){
+      if(!slides || !slides.length) return;
+      if(slideInterval) { clearInterval(slideInterval); slideInterval = null; }
+      const nextIndex = (current - 1 + slides.length) % slides.length;
+      goToSlide(nextIndex);
+      // restart auto-play after a short delay
+      slideInterval = setInterval(()=> goToSlide((current+1)%slides.length), 4000);
+    }
+
+    function nextSlide(){
+      if(!slides || !slides.length) return;
+      if(slideInterval) { clearInterval(slideInterval); slideInterval = null; }
+      const nextIndex = (current + 1) % slides.length;
+      goToSlide(nextIndex);
+      slideInterval = setInterval(()=> goToSlide((current+1)%slides.length), 4000);
+    }
+
+    prevBtn.addEventListener('click', prevSlide);
+    nextBtn.addEventListener('click', nextSlide);
+
+    // clean up timers on unload
+    window.addEventListener('beforeunload', () => {
+      if(slideInterval) clearInterval(slideInterval);
+    });
+
+    // ensure elements hidden on load (defensive)
+    (function initHide(){
+      openEnvBtn.style.display = 'none';
+      giftBtn.style.display = 'none';
+      envelope.style.display = 'none';
+      slideshow.style.display = 'none';
+      navButtons.style.display = 'none';
+    })();
+  </script>
+</body>
+</html>
